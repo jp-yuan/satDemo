@@ -17,6 +17,20 @@
       <span class="section-timer"><Timer v-if="showTimer" :minutes="minutes" :seconds="seconds" /></span>
     </div>
 
+  
+    <!-- Question Navigation Panel -->
+    <div class="question-nav">
+      <button
+        v-for="(q, idx) in questions.value"
+        :key="idx"
+        class="question-nav-btn"
+        :class="{ active: currentQuestion === idx, answered: answers.value[idx] !== null }"
+        @click="jumpToQuestion(idx)"
+      >
+        {{ idx + 1 }}
+      </button>
+    </div>
+
     <!-- Instructions Page -->
     <div v-if="showInstructions" class="instructions-box">
       <h2>Reading &amp; Writing Test Directions</h2>
@@ -36,7 +50,7 @@
             <div class="text-body">
               <template v-if="typeof text === 'object' && text !== null">
                 <div v-if="text.text">{{ text.text }}</div>
-                <img v-if="text.img" :src="text.img" alt="Question Image" class="question-img" />
+                <img v-if="questions[currentQuestion].graph" :src="questions[currentQuestion].graph" alt="Graph" class="question-img" />
               </template>
               <template v-else>
                 {{ text }}
@@ -80,6 +94,8 @@
 <script setup>
 import { ref, defineProps } from 'vue'
 import Timer from './Timer.vue'
+import Papa from 'papaparse'
+import csvData from '../assets/data.csv?raw'
 
 const props = defineProps({
   studentName: { type: String, default: 'Demo Student' }
@@ -90,38 +106,26 @@ const minutes = 43
 const seconds = 22
 
 const showInstructions = ref(true)
-
-const questions = [
-  {
-    texts: [
-      `As California faces another drought, urban residents have been called upon to do their part. About 62 gallons of water per week is needed for every one hundred square feet of grassy lawn. The average backyard is about 1,500 square feet. Add the front yard, and multiply by all the houses in a city. When residents cut down on their lawn watering, the effect is cumulative. It adds up to millions of gallons of water saved per week.`,
-      `The California Department of Water Resources reports that agriculture (farmland) accounts for 29% of all water use during a wet year. During a dry year, that figure more than doubles, claiming a staggering 61%. In contrast, urban water use ranges from just 8% during a wet year to 11% during a dry one. These figures make sense when considering that most water usage for urban dwellers happens indoors. Lawn watering—which fluctuates from wet years to dry years—is a small piece of the pie.`
-    ],
-    prompt: `Based on the texts, how would the author of Text 2 most likely describe the view presented in Text 1?`,
-    choices: [
-      'It is compelling and supports the data from the California Department of Water Resources report.',
-      'It is accurate, but it lacks context provided by the data from the California Department of Water Resources report.',
-      'It is plausible, but it contradicts the data from the California Department of Water Resources report.',
-      'It is probably only applicable to water usage patterns during wet years and does not address the data from the California Department of Water Resources report.'
-    ]
-  },
-  {
-    texts: [
-      "Text 1: The city's new recycling program has been a huge success. In the first month alone, residents recycled over 100 tons of material, reducing landfill waste by 20%.",
-      "Text 2: While the city's recycling program has made progress, some materials are still ending up in landfills. Continued education and outreach are needed to further improve recycling rates."
-    ],
-    prompt: `Based on the texts, what is the main difference between the perspectives of the two authors?`,
-    choices: [
-      "The author of Text 1 is more optimistic about the program's success than the author of Text 2.",
-      "The author of Text 2 believes the program is unnecessary.",
-      "The author of Text 1 thinks recycling rates are too low.",
-      "The author of Text 2 is unaware of the program's results."
-    ]
-  }
-]
-
 const currentQuestion = ref(0)
-const answers = ref(Array(questions.length).fill(null))
+
+const parsed = Papa.parse(csvData, {
+  header: true,
+  skipEmptyLines: true
+})
+const questions = ref(parsed.data.map(row => ({
+  texts: [{ text: row.Question }],
+  prompt: row.Prompt,
+  choices: [
+    row['answer 1']?.trim(),
+    row['answer 2 ']?.trim(),
+    row['answer 3']?.trim(),
+    row['answer 4']?.trim()
+  ].filter(Boolean),
+  correct: row.answer,
+  module: row.module,
+  graph: row.Graph && row.Graph !== 'N/A' ? row.Graph : null
+})))
+const answers = ref(Array(questions.value.length).fill(null))
 
 function selectAnswer(idx) {
   answers.value[currentQuestion.value] = idx
@@ -131,7 +135,7 @@ function selectAnswer(idx) {
 function nextOrStart() {
   if (showInstructions.value) {
     showInstructions.value = false
-  } else if (currentQuestion.value < questions.length - 1) {
+  } else if (currentQuestion.value < questions.value.length - 1) {
     currentQuestion.value++
   }
 }
@@ -139,6 +143,10 @@ function prevQuestion() {
   if (currentQuestion.value > 0) {
     currentQuestion.value--
   }
+}
+
+function jumpToQuestion(idx) {
+  currentQuestion.value = idx
 }
 </script>
 
@@ -357,5 +365,30 @@ function prevQuestion() {
   max-width: 100%;
   height: auto;
   margin: 12px 0;
+}
+.question-nav {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 18px 0 0 0;
+}
+.question-nav-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid #1976d2;
+  background: #fff;
+  color: #1976d2;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border 0.2s;
+}
+.question-nav-btn.active {
+  background: #1976d2;
+  color: #fff;
+}
+.question-nav-btn.answered {
+  border-color: #43a047;
 }
 </style> 
