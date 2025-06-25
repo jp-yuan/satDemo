@@ -1,9 +1,20 @@
 <script setup>
+import { ref } from 'vue'
+import AccessPage from './components/AccessPage.vue'
 import SatDemo from './components/SatDemo.vue'
+
+const studentName = ref('')
+const accessGranted = ref(false)
+
+function handleAccess({ name }) {
+  studentName.value = name
+  accessGranted.value = true
+}
 </script>
 
 <template>
-  <SatDemo />
+  <AccessPage v-if="!accessGranted" @access-granted="handleAccess" />
+  <SatDemo v-else :student-name="studentName" />
 </template>
 
 <style scoped>

@@ -71,15 +71,19 @@
 
     <!-- Footer -->
     <div class="footer">
-      <span>Demo Student</span>
+      <span>{{ props.studentName }}</span>
       <span class="info">SAT® is a registered trademark owned by the College Board, PSAT/NMSQT® is a registered trademark of the College Board and National Merit Scholarship Corporation, neither of which was involved in the production of, nor do they endorse, these materials.</span>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, defineProps } from 'vue'
 import Timer from './Timer.vue'
+
+const props = defineProps({
+  studentName: { type: String, default: 'Demo Student' }
+})
 
 const showTimer = true
 const minutes = 43
