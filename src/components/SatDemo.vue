@@ -1,56 +1,59 @@
 <template>
   <div class="sat-demo">
     <!-- Header Bar -->
-    <div class="header-bar">
-      <span class="compass">● Young Scholars Testing Center</span>
-      <button class="resume-btn">Resume Tour</button>
-      <button class="end-btn">End Demo Section</button>
-      <div class="jump-to">
-        <span>JUMP TO:</span>
-        <button class="jump-btn">Reading and Writing ▼</button>
-      </div>
-    </div>
+    <HeaderBar 
+      :current-session="currentSession"
+      :current-module="currentModule"
+      :show-instructions="showInstructions"
+      @change-session="changeSession"
+      @change-module="changeModule"
+    />
 
-    <!-- Section Title -->
+    <!-- Session Title -->
     <div class="section-title">
-      <span class="section section-left">Section: Reading and Writing</span>
+      <span class="section section-left">{{ getSessionTitle() }}</span>
       <span class="section-timer"><Timer v-if="showTimer" :minutes="minutes" :seconds="seconds" /></span>
     </div>
 
-  
-    <!-- Question Navigation Panel -->
-    <div class="question-nav">
-      <button
-        v-for="(q, idx) in questions.value"
-        :key="idx"
-        class="question-nav-btn"
-        :class="{ active: currentQuestion === idx, answered: answers.value[idx] !== null }"
-        @click="jumpToQuestion(idx)"
-      >
-        {{ idx + 1 }}
-      </button>
-    </div>
+    <!-- Session 1 Page -->
+    <SessionPage 
+      v-if="currentSession === 'session1' && !showInstructions"
+      :session-title="'Session 1: Reading and Writing'"
+      :session-description="'This session contains two modules. You will complete Module 1 first, then Module 2.'"
+      :modules="session1Modules"
+      :current-module="currentModule"
+      :module-progress="moduleProgress"
+      @change-module="changeModule"
+    />
+
+    <!-- Session 2 Page -->
+    <SessionPage 
+      v-if="currentSession === 'session2' && !showInstructions"
+      :session-title="'Session 2: Math'"
+      :session-description="'This session contains two modules. You will complete Module 1 first, then Module 2.'"
+      :modules="session2Modules"
+      :current-module="currentModule"
+      :module-progress="moduleProgress"
+      @change-module="changeModule"
+    />
 
     <!-- Instructions Page -->
-    <div v-if="showInstructions" class="instructions-box">
-      <h2>Reading &amp; Writing Test Directions</h2>
-      <p><strong>This demo displays a shortened version of the Reading &amp; Writing Test. You will have 15 minutes before the demo advances to the next section. You can return to this section using the JUMP TO menu in the top right of the screen.</strong></p>
-      <p>Clear your workstation of everything except your computer, scratch paper, and pencil.</p>
-      <p>SECTION DIRECTIONS: The following screen contains instructions about the Reading &amp; Writing Test. That screen is not part of the scored questions, but it is included in your total time. You can return to the instructions at any time by selecting the question navigation button at the bottom center of your screen and clicking on Instr in the question list.</p>
-      <p>Select the <strong>Next</strong> button to proceed.</p>
-      <p><strong>If you do not select Next, your test will automatically begin when the timer ends.</strong></p>
-    </div>
+    <InstructionsBox 
+      v-if="showInstructions"
+      :title="getModuleInstructionsTitle()"
+      :module-type="getModuleType()"
+    />
 
     <!-- Main Content: Question and Answers -->
-    <div v-else class="main-content">
+    <div v-else-if="!showInstructions && currentModule" class="main-content">
       <div class="question-texts">
-        <template v-for="(text, idx) in questions[currentQuestion].texts" :key="idx">
+        <template v-for="(text, idx) in getCurrentQuestions()[currentQuestion].texts" :key="idx">
           <div class="text-block">
             <div class="text-title">Text {{ idx + 1 }}</div>
             <div class="text-body">
               <template v-if="typeof text === 'object' && text !== null">
                 <div v-if="text.text">{{ text.text }}</div>
-                <img v-if="questions[currentQuestion].graph" :src="questions[currentQuestion].graph" alt="Graph" class="question-img" />
+                <img v-if="getCurrentQuestions()[currentQuestion].graph" :src="getCurrentQuestions()[currentQuestion].graph" alt="Graph" class="question-img" />
               </template>
               <template v-else>
                 {{ text }}
@@ -59,27 +62,31 @@
           </div>
         </template>
       </div>
-      <div class="question-area">
-        <div class="question-number">{{ currentQuestion + 1 }}</div>
-        <div class="question-prompt">{{ questions[currentQuestion].prompt }}</div>
-        <div class="choices">
-          <button
-            v-for="(choice, idx) in questions[currentQuestion].choices"
-            :key="idx"
-            class="choice-btn"
-            :class="{ selected: answers[currentQuestion] === idx }"
-            @click="selectAnswer(idx)"
-          >
-            <span class="choice-letter">{{ String.fromCharCode(65 + idx) }}</span>
-            <span class="choice-text">{{ choice }}</span>
-          </button>
-        </div>
-      </div>
+      
+      <QuestionArea
+        :question-number="currentQuestion + 1"
+        :question="getCurrentQuestions()[currentQuestion]"
+        :selected-answer="getCurrentAnswers()[currentQuestion]"
+        :is-flagged="getCurrentFlaggedQuestions()[currentQuestion]"
+        @select-answer="selectAnswer"
+        @toggle-flag="toggleFlag(currentQuestion)"
+      />
     </div>
+
+    <!-- Question Navigation Panel -->
+    <QuestionNavigation
+      v-if="!showInstructions && currentModule"
+      :questions="getCurrentQuestions()"
+      :current-question="currentQuestion"
+      :answers="getCurrentAnswers()"
+      :flagged-questions="getCurrentFlaggedQuestions()"
+      @jump-to-question="jumpToQuestion"
+      @toggle-flag="toggleFlag"
+    />
 
     <!-- Navigation Buttons -->
     <div class="nav-buttons">
-      <button v-if="!showInstructions" class="prev-btn" :disabled="currentQuestion === 0" @click="prevQuestion">Prev</button>
+      <button v-if="!showInstructions && currentModule" class="prev-btn" :disabled="currentQuestion === 0" @click="prevQuestion">Prev</button>
       <button class="next-btn" @click="nextOrStart">Next</button>
     </div>
 
@@ -92,8 +99,13 @@
 </template>
 
 <script setup>
-import { ref, defineProps } from 'vue'
+import { ref, defineProps, computed } from 'vue'
 import Timer from './Timer.vue'
+import HeaderBar from './HeaderBar.vue'
+import SessionPage from './SessionPage.vue'
+import QuestionArea from './QuestionArea.vue'
+import QuestionNavigation from './QuestionNavigation.vue'
+import InstructionsBox from './InstructionsBox.vue'
 import Papa from 'papaparse'
 import csvData from '../assets/data.csv?raw'
 
@@ -107,38 +119,150 @@ const seconds = 22
 
 const showInstructions = ref(true)
 const currentQuestion = ref(0)
+const currentSession = ref('session1')
+const currentModule = ref('module1')
 
+// Parse CSV data
 const parsed = Papa.parse(csvData, {
   header: true,
   skipEmptyLines: true
 })
-const questions = ref(parsed.data.map(row => ({
-  texts: [{ text: row.Question }],
-  prompt: row.Prompt,
-  choices: [
-    row['answer 1']?.trim(),
-    row['answer 2 ']?.trim(),
-    row['answer 3']?.trim(),
-    row['answer 4']?.trim()
-  ].filter(Boolean),
-  correct: row.answer,
-  module: row.module,
-  graph: row.Graph && row.Graph !== 'N/A' ? row.Graph : null
-})))
-const answers = ref(Array(questions.value.length).fill(null))
+
+// Create questions for each module (in a real app, you'd have separate data)
+const createModuleQuestions = (moduleType, count = 5) => {
+  return Array.from({ length: count }, (_, i) => ({
+    texts: [{ text: `Sample ${moduleType} question ${i + 1} text. This is a placeholder for the actual question content.` }],
+    prompt: `Sample ${moduleType} question ${i + 1} prompt.`,
+    choices: [
+      `Choice A for question ${i + 1}`,
+      `Choice B for question ${i + 1}`,
+      `Choice C for question ${i + 1}`,
+      `Choice D for question ${i + 1}`
+    ],
+    correct: 'A',
+    module: moduleType,
+    graph: null
+  }))
+}
+
+// Questions for each module
+const moduleQuestions = {
+  module1: createModuleQuestions('Reading and Writing', 5),
+  module2: createModuleQuestions('Reading and Writing', 5),
+  module3: createModuleQuestions('Math', 5),
+  module4: createModuleQuestions('Math', 5)
+}
+
+// Answers for each module
+const moduleAnswers = {
+  module1: Array(5).fill(null),
+  module2: Array(5).fill(null),
+  module3: Array(5).fill(null),
+  module4: Array(5).fill(null)
+}
+
+// Flagged questions for each module
+const moduleFlaggedQuestions = {
+  module1: Array(5).fill(false),
+  module2: Array(5).fill(false),
+  module3: Array(5).fill(false),
+  module4: Array(5).fill(false)
+}
+
+// Module progress tracking
+const moduleProgress = ref({
+  module1: 0,
+  module2: 0,
+  module3: 0,
+  module4: 0
+})
+
+// Session module configurations
+const session1Modules = [
+  { id: 'module1', title: 'Module 1', type: 'Reading and Writing', questionCount: 5 },
+  { id: 'module2', title: 'Module 2', type: 'Reading and Writing', questionCount: 5 }
+]
+
+const session2Modules = [
+  { id: 'module3', title: 'Module 1', type: 'Math', questionCount: 5 },
+  { id: 'module4', title: 'Module 2', type: 'Math', questionCount: 5 }
+]
+
+// Helper functions
+function getCurrentQuestions() {
+  return moduleQuestions[currentModule.value] || []
+}
+
+function getCurrentAnswers() {
+  return moduleAnswers[currentModule.value] || []
+}
+
+function getCurrentFlaggedQuestions() {
+  return moduleFlaggedQuestions[currentModule.value] || []
+}
+
+function getSessionTitle() {
+  const sessionNames = {
+    session1: 'Session 1: Reading and Writing',
+    session2: 'Session 2: Math'
+  }
+  return sessionNames[currentSession.value] || 'Digital SAT'
+}
+
+function getModuleInstructionsTitle() {
+  const moduleNames = {
+    module1: 'Reading and Writing Module 1 Test Directions',
+    module2: 'Reading and Writing Module 2 Test Directions',
+    module3: 'Math Module 1 Test Directions',
+    module4: 'Math Module 2 Test Directions'
+  }
+  return moduleNames[currentModule.value] || 'Test Directions'
+}
+
+function getModuleType() {
+  const moduleTypes = {
+    module1: 'Reading and Writing',
+    module2: 'Reading and Writing',
+    module3: 'Math',
+    module4: 'Math'
+  }
+  return moduleTypes[currentModule.value] || 'Test'
+}
+
+function changeSession(session) {
+  currentSession.value = session
+  if (session === 'session1') {
+    currentModule.value = 'module1'
+  } else {
+    currentModule.value = 'module3'
+  }
+  showInstructions.value = true
+  currentQuestion.value = 0
+}
+
+function changeModule(module) {
+  currentModule.value = module
+  showInstructions.value = true
+  currentQuestion.value = 0
+}
 
 function selectAnswer(idx) {
-  answers.value[currentQuestion.value] = idx
-  console.log(answers.value)
+  const currentAnswers = getCurrentAnswers()
+  currentAnswers[currentQuestion.value] = idx
+  
+  // Update progress
+  const answeredCount = currentAnswers.filter(answer => answer !== null).length
+  moduleProgress.value[currentModule.value] = answeredCount
 }
 
 function nextOrStart() {
   if (showInstructions.value) {
     showInstructions.value = false
-  } else if (currentQuestion.value < questions.value.length - 1) {
+  } else if (currentQuestion.value < getCurrentQuestions().length - 1) {
     currentQuestion.value++
   }
 }
+
 function prevQuestion() {
   if (currentQuestion.value > 0) {
     currentQuestion.value--
@@ -147,6 +271,13 @@ function prevQuestion() {
 
 function jumpToQuestion(idx) {
   currentQuestion.value = idx
+  showInstructions.value = false
+}
+
+function toggleFlag(idx) {
+  const currentFlagged = getCurrentFlaggedQuestions()
+  currentFlagged[idx] = !currentFlagged[idx]
+  console.log(currentFlagged)
 }
 </script>
 
@@ -168,40 +299,7 @@ function jumpToQuestion(idx) {
   bottom: 0;
   overflow: auto;
 }
-.header-bar {
-  background: #d6e1f5;
-  padding: 10px 20px;
-  display: flex;
-  align-items: center;
-  position: relative;
-  gap: 16px;
-  width: 100%;
-  box-sizing: border-box;
-}
-.title {
-  font-weight: bold;
-  font-size: 20px;
-  margin-right: 16px;
-}
-.resume-btn, .end-btn, .jump-btn {
-  background: #1976d2;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  padding: 6px 14px;
-  margin-left: 8px;
-  cursor: pointer;
-  font-size: 14px;
-}
-.end-btn {
-  background: #0b3556;
-}
-.jump-to {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
+
 .section-title {
   padding: 12px 20px 0 20px;
   font-size: 16px;
@@ -215,11 +313,13 @@ function jumpToQuestion(idx) {
   position: relative;
   justify-content: center;
 }
+
 .section-left {
   position: absolute;
   left: 20px;
   font-weight: bold;
 }
+
 .section-timer {
   font-size: 18px;
   font-weight: bold;
@@ -228,10 +328,7 @@ function jumpToQuestion(idx) {
   align-items: center;
   justify-content: center;
 }
-.compass {
-  color: #b94a48;
-  font-size: 14px;
-}
+
 .main-content {
   display: flex;
   flex-direction: row;
@@ -239,64 +336,26 @@ function jumpToQuestion(idx) {
   padding: 24px 32px 0 32px;
   flex: 1 1 auto;
 }
+
 .question-texts {
   flex: 2;
   padding-right: 32px;
 }
+
 .text-block {
   margin-bottom: 24px;
 }
+
 .text-title {
   font-weight: bold;
   margin-bottom: 4px;
 }
+
 .text-body {
   font-size: 16px;
   color: #222;
 }
-.question-area {
-  flex: 3;
-  background: #fff;
-  border-left: 2px solid #e0e0e0;
-  padding-left: 32px;
-  display: flex;
-  flex-direction: column;
-}
-.question-number {
-  font-size: 20px;
-  font-weight: bold;
-  margin-bottom: 12px;
-}
-.question-prompt {
-  font-size: 16px;
-  margin-bottom: 18px;
-}
-.choices {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.choice-btn {
-  display: flex;
-  align-items: flex-start;
-  background: #fff;
-  border: 1px solid #222;
-  border-radius: 6px;
-  padding: 12px 16px;
-  font-size: 16px;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.2s, border 0.2s;
-  gap: 12px;
-}
-.choice-btn:hover {
-  background: #e3f0ff;
-  border-color: #1976d2;
-}
-.choice-letter {
-  font-weight: bold;
-  margin-right: 8px;
-}
+
 .nav-buttons {
   display: flex;
   justify-content: flex-end;
@@ -305,6 +364,7 @@ function jumpToQuestion(idx) {
   width: 100%;
   box-sizing: border-box;
 }
+
 .prev-btn, .next-btn {
   background: #b3d4fc;
   color: #222;
@@ -315,10 +375,12 @@ function jumpToQuestion(idx) {
   cursor: pointer;
   font-weight: 500;
 }
+
 .next-btn {
   background: #0084ff;
   color: #fff;
 }
+
 .footer {
   margin-top: auto;
   padding: 24px 0 8px 0;
@@ -332,63 +394,16 @@ function jumpToQuestion(idx) {
   width: 100%;
   box-sizing: border-box;
 }
+
 .info {
   font-size: 12px;
   color: #888;
 }
-.instructions-box {
-  background: #f9f9f9;
-  border-top: 1px dashed #ccc;
-  border-bottom: 1px dashed #ccc;
-  margin: 0;
-  padding: 20px 30px;
-  font-size: 16px;
-  color: #222;
-  width: 100%;
-  box-sizing: border-box;
-  flex: 1 0 auto;
-}
-.instructions-box h2 {
-  margin-top: 0;
-  font-size: 20px;
-}
-.instructions-box p {
-  margin: 10px 0;
-}
-.choice-btn.selected {
-  background: #1976d2;
-  color: #fff;
-  border-color: #1976d2;
-}
+
 .question-img {
   display: block;
   max-width: 100%;
   height: auto;
   margin: 12px 0;
-}
-.question-nav {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin: 18px 0 0 0;
-}
-.question-nav-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 2px solid #1976d2;
-  background: #fff;
-  color: #1976d2;
-  font-weight: bold;
-  font-size: 16px;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s, border 0.2s;
-}
-.question-nav-btn.active {
-  background: #1976d2;
-  color: #fff;
-}
-.question-nav-btn.answered {
-  border-color: #43a047;
 }
 </style> 
