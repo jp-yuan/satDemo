@@ -64,25 +64,33 @@
       </div>
       
       <QuestionArea
+        :questionKey="questionRenderKey"
+        :flagKey="flagRenderKey"
         :question-number="currentQuestion + 1"
         :question="getCurrentQuestions()[currentQuestion]"
         :selected-answer="getCurrentAnswers()[currentQuestion]"
         :is-flagged="getCurrentFlaggedQuestions()[currentQuestion]"
         @select-answer="selectAnswer"
-        @toggle-flag="toggleFlag(currentQuestion)"
+        @toggle-flag="() => toggleFlag(currentQuestion)"
+      />
+
+
       />
     </div>
 
     <!-- Question Navigation Panel -->
-    <QuestionNavigation
-      v-if="!showInstructions && currentModule"
-      :questions="getCurrentQuestions()"
-      :current-question="currentQuestion"
-      :answers="getCurrentAnswers()"
-      :flagged-questions="getCurrentFlaggedQuestions()"
-      @jump-to-question="jumpToQuestion"
-      @toggle-flag="toggleFlag"
-    />
+    <div>
+      <QuestionNavigation
+        v-if="!showInstructions && currentModule"
+        :questionNavKey="questionNavRenderKey"
+        :questions="getCurrentQuestions()"
+        :current-question="currentQuestion"
+        :answers="getCurrentAnswers()"
+        :flagged-questions="getCurrentFlaggedQuestions()"
+        @jump-to-question="jumpToQuestion"
+        @toggle-flag="toggleFlag"
+      />
+     </div>
 
     <!-- Navigation Buttons -->
     <div class="nav-buttons">
@@ -121,6 +129,10 @@ const showInstructions = ref(true)
 const currentQuestion = ref(0)
 const currentSession = ref('session1')
 const currentModule = ref('module1')
+
+const questionRenderKey = ref(0);
+const flagRenderKey = ref(0);
+const questionNavRenderKey = ref(0);
 
 // Parse CSV data
 const parsed = Papa.parse(csvData, {
@@ -253,6 +265,8 @@ function selectAnswer(idx) {
   // Update progress
   const answeredCount = currentAnswers.filter(answer => answer !== null).length
   moduleProgress.value[currentModule.value] = answeredCount
+  questionRenderKey.value += 1;
+  questionNavRenderKey.value += 1;
 }
 
 function nextOrStart() {
@@ -278,6 +292,8 @@ function toggleFlag(idx) {
   const currentFlagged = getCurrentFlaggedQuestions()
   currentFlagged[idx] = !currentFlagged[idx]
   console.log(currentFlagged)
+  flagRenderKey.value += 1;
+  questionNavRenderKey.value += 1;
 }
 </script>
 
@@ -383,14 +399,14 @@ function toggleFlag(idx) {
 
 .footer {
   margin-top: auto;
-  padding: 24px 0 8px 0;
+  padding: 12px 0 4px 0;
   text-align: center;
-  font-size: 14px;
+  font-size: 12px;
   color: #888;
-  border-top: 1px dashed #ccc;
+  border-top: 1px solid #ccc;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   width: 100%;
   box-sizing: border-box;
 }
