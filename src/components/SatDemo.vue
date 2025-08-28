@@ -140,45 +140,109 @@ const parsed = Papa.parse(csvData, {
   skipEmptyLines: true
 })
 
-// Create questions for each module (in a real app, you'd have separate data)
-const createModuleQuestions = (moduleType, count = 5) => {
-  return Array.from({ length: count }, (_, i) => ({
-    texts: [{ text: `Sample ${moduleType} question ${i + 1} text. This is a placeholder for the actual question content.` }],
-    prompt: `Sample ${moduleType} question ${i + 1} prompt.`,
-    choices: [
-      `Choice A for question ${i + 1}`,
-      `Choice B for question ${i + 1}`,
-      `Choice C for question ${i + 1}`,
-      `Choice D for question ${i + 1}`
-    ],
-    correct: 'A',
-    module: moduleType,
-    graph: null
-  }))
+// Parse real questions from CSV data
+const parseRealQuestions = () => {
+  const questions = {
+    module1: [],
+    module2: [],
+    module3: [],
+    module4: []
+  }
+  
+  parsed.data.forEach((row, index) => {
+    if (row.Question && row.module) {
+      // More robust way to get choices - try different possible column names
+      const getChoice = (row, choiceNum) => {
+        const possibleNames = [
+          `answer ${choiceNum}`,
+          `answer ${choiceNum} `,
+          `Answer ${choiceNum}`,
+          `Answer ${choiceNum} `,
+          `choice ${choiceNum}`,
+          `Choice ${choiceNum}`
+        ]
+        
+        for (const name of possibleNames) {
+          if (row[name] !== undefined && row[name] !== null && row[name] !== '') {
+            return row[name]
+          }
+        }
+        return ''
+      }
+      
+      const choiceA = getChoice(row, 1)
+      const choiceB = getChoice(row, 2)
+      const choiceC = getChoice(row, 3)
+      const choiceD = getChoice(row, 4)
+      
+      const question = {
+        texts: [{ text: row.Question }],
+        prompt: row.Prompt || '',
+        choices: [choiceA, choiceB, choiceC, choiceD],
+        correct: row.answer || 'A',
+        module: row.module,
+        graph: row.Graph && row.Graph !== 'N/A' ? row.Graph : null
+      }
+      
+      // Assign to appropriate module based on CSV data, limiting to 27 questions per module
+      if (row.module === 'Reading and Writing Module 1' && questions.module1.length < 27) {
+        questions.module1.push(question)
+      } else if (row.module === 'Reading and Writing Module 2' && questions.module2.length < 27) {
+        questions.module2.push(question)
+      } else if (row.module === 'Math Module 1') {
+        questions.module3.push(question)
+      } else if (row.module === 'Math Module 2') {
+        questions.module4.push(question)
+      }
+    }
+  })
+  
+  // Ensure Module 2 has exactly 27 questions by adding placeholder questions if needed
+  while (questions.module2.length < 27) {
+    const placeholderNumber = questions.module2.length + 1
+    const placeholderQuestion = {
+      texts: [{ text: `Placeholder Question ${placeholderNumber} - This is a sample question for Reading and Writing Module 2. Please replace with actual question content.` }],
+      prompt: 'Which choice best completes the text?',
+      choices: [
+        'A) Placeholder choice A',
+        'B) Placeholder choice B', 
+        'C) Placeholder choice C',
+        'D) Placeholder choice D'
+      ],
+      correct: 'A',
+      module: 'Reading and Writing Module 2',
+      graph: null
+    }
+    questions.module2.push(placeholderQuestion)
+  }
+  
+  // Log final counts for verification
+  console.log('Question counts loaded:')
+  console.log('Module 1 (Reading and Writing):', questions.module1.length, 'questions')
+  console.log('Module 2 (Reading and Writing):', questions.module2.length, 'questions')
+  console.log('Module 3 (Math):', questions.module3.length, 'questions')
+  console.log('Module 4 (Math):', questions.module4.length, 'questions')
+  
+  return questions
 }
 
-// Questions for each module
-const moduleQuestions = {
-  module1: createModuleQuestions('Reading and Writing', 5),
-  module2: createModuleQuestions('Reading and Writing', 5),
-  module3: createModuleQuestions('Math', 5),
-  module4: createModuleQuestions('Math', 5)
-}
+// Questions for each module (using real data from CSV)
+const moduleQuestions = parseRealQuestions()
 
-// Answers for each module
+// Answers for each module (dynamically sized based on actual questions)
 const moduleAnswers = {
-  module1: Array(5).fill(null),
-  module2: Array(5).fill(null),
-  module3: Array(5).fill(null),
-  module4: Array(5).fill(null)
+  module1: Array(moduleQuestions.module1.length).fill(null),
+  module2: Array(moduleQuestions.module2.length).fill(null),
+  module3: Array(moduleQuestions.module3.length).fill(null),
+  module4: Array(moduleQuestions.module4.length).fill(null)
 }
 
-// Flagged questions for each module
+// Flagged questions for each module (dynamically sized based on actual questions)
 const moduleFlaggedQuestions = {
-  module1: Array(5).fill(false),
-  module2: Array(5).fill(false),
-  module3: Array(5).fill(false),
-  module4: Array(5).fill(false)
+  module1: Array(moduleQuestions.module1.length).fill(false),
+  module2: Array(moduleQuestions.module2.length).fill(false),
+  module3: Array(moduleQuestions.module3.length).fill(false),
+  module4: Array(moduleQuestions.module4.length).fill(false)
 }
 
 // Module progress tracking
@@ -189,15 +253,15 @@ const moduleProgress = ref({
   module4: 0
 })
 
-// Session module configurations
+// Session module configurations (with actual question counts)
 const session1Modules = [
-  { id: 'module1', title: 'Module 1', type: 'Reading and Writing', questionCount: 5 },
-  { id: 'module2', title: 'Module 2', type: 'Reading and Writing', questionCount: 5 }
+  { id: 'module1', title: 'Module 1', type: 'Reading and Writing', questionCount: moduleQuestions.module1.length },
+  { id: 'module2', title: 'Module 2', type: 'Reading and Writing', questionCount: moduleQuestions.module2.length }
 ]
 
 const session2Modules = [
-  { id: 'module3', title: 'Module 1', type: 'Math', questionCount: 5 },
-  { id: 'module4', title: 'Module 2', type: 'Math', questionCount: 5 }
+  { id: 'module3', title: 'Module 1', type: 'Math', questionCount: moduleQuestions.module3.length },
+  { id: 'module4', title: 'Module 2', type: 'Math', questionCount: moduleQuestions.module4.length }
 ]
 
 // Helper functions
