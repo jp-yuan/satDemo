@@ -64,11 +64,14 @@ defineEmits(['select-answer', 'toggle-flag'])
 .question-number {
   font-size: 20px;
   font-weight: bold;
+  color: #000;
 }
 
 .question-prompt {
   font-size: 16px;
   margin-bottom: 18px;
+  color: #000;
+  font-weight: 500;
 }
 
 .choices {

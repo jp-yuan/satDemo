@@ -1,5 +1,7 @@
 <template>
-  <span class="timer">{{ formattedTime }}</span>
+  <span class="timer" :class="{ 'timer-ready': !startTimer }">
+    {{ startTimer ? formattedTime : 'Ready' }}
+  </span>
 </template>
 
 <script setup>
@@ -7,7 +9,8 @@ import { ref, onMounted, onUnmounted, watch } from 'vue'
 
 const props = defineProps({
   minutes: { type: Number, default: 60 },
-  seconds: { type: Number, default: 0 }
+  seconds: { type: Number, default: 0 },
+  startTimer: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['finished'])
@@ -33,7 +36,9 @@ function tick() {
 }
 
 onMounted(() => {
-  interval = setInterval(tick, 1000)
+  if (props.startTimer) {
+    interval = setInterval(tick, 1000)
+  }
 })
 
 onUnmounted(() => {
@@ -44,6 +49,18 @@ watch(() => [props.minutes, props.seconds], ([newMin, newSec]) => {
   totalSeconds.value = newMin * 60 + newSec
   formattedTime.value = formatTime(totalSeconds.value)
 })
+
+watch(() => props.startTimer, (shouldStart) => {
+  if (shouldStart && !interval) {
+    interval = setInterval(tick, 1000)
+  } else if (!shouldStart && interval) {
+    clearInterval(interval)
+    interval = null
+    // Reset timer to initial values when stopped
+    totalSeconds.value = props.minutes * 60 + props.seconds
+    formattedTime.value = formatTime(totalSeconds.value)
+  }
+})
 </script>
 
 <style scoped>
@@ -52,5 +69,10 @@ watch(() => [props.minutes, props.seconds], ([newMin, newSec]) => {
   font-family: 'Courier New', Courier, monospace;
   font-size: 1em;
   color: #222;
+}
+
+.timer-ready {
+  color: #666;
+  font-style: italic;
 }
 </style> 

@@ -14,7 +14,7 @@ function handleAccess({ name }) {
 
 <template>
   <AccessPage v-if="!accessGranted" @access-granted="handleAccess" />
-  <SatDemo v-else :student-name="studentName" />
+  <SatDemo v-else :studentName="studentName" />
 </template>
 
 <style scoped>
