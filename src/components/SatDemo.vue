@@ -2,6 +2,7 @@
   <div class="sat-demo">
     <!-- Header Bar -->
     <HeaderBar 
+      v-if="!showCalendly"
       :current-session="currentSession"
       :current-module="currentModule"
       :show-instructions="showInstructions"
@@ -10,7 +11,7 @@
     />
 
     <!-- Session Title -->
-    <div class="section-title">
+    <div v-if="!showCalendly" class="section-title">
       <span class="section section-left">{{ getSessionTitle() }}</span>
       <span class="section-timer"><Timer v-if="showTimer" :minutes="minutes" :seconds="seconds" :start-timer="timerStarted" @finished="handleTimerFinished" /></span>
     </div>
@@ -19,7 +20,7 @@
 
     <!-- Instructions Page -->
     <InstructionsBox 
-      v-if="showInstructions && !showBreakPage"
+      v-if="showInstructions && !showBreakPage && !showCalendly"
       :title="getModuleInstructionsTitle()"
       :module-type="getModuleType()"
     />
@@ -28,6 +29,13 @@
     <BreakPage 
       v-if="showBreakPage"
       @continue="continueToSession2"
+    />
+
+    <!-- Calendly Scheduler (after test completion) -->
+    <CalendlyScheduler 
+      v-if="showCalendly"
+      :calendly-url="calendlyUrl"
+      @skip="skipCalendly"
     />
 
     <!-- Loading State -->
@@ -44,8 +52,9 @@
     </div>
 
     <!-- Main Content: Question and Answers -->
-    <div v-else-if="!showInstructions && !showBreakPage && currentModule && !isLoadingQuestions" class="main-content">
-      <div class="question-texts">
+    <div v-else-if="!showInstructions && !showBreakPage && !showCalendly && currentModule && !isLoadingQuestions" class="main-content">
+      <!-- Only show text-body for Reading/Writing modules -->
+      <div v-if="currentModule === 'module1' || currentModule === 'module2'" class="question-texts">
         <template v-for="(text, idx) in getCurrentQuestions()[currentQuestion].texts" :key="idx">
           <div class="text-block">
             <div class="text-title">Text {{ idx + 1 }}</div>
@@ -70,6 +79,7 @@
         :selected-answer="getCurrentAnswers()[currentQuestion]"
         :is-flagged="getCurrentFlaggedQuestions()[currentQuestion]"
         @select-answer="selectAnswer"
+        @input-answer="inputAnswer"
         @toggle-flag="() => toggleFlag(currentQuestion)"
       />
 
@@ -80,7 +90,7 @@
     <!-- Question Navigation Panel -->
     <div>
       <QuestionNavigation
-        v-if="!showInstructions && !showBreakPage && currentModule"
+        v-if="!showInstructions && !showBreakPage && !showCalendly && currentModule"
         :questionNavKey="questionNavRenderKey"
         :questions="getCurrentQuestions()"
         :current-question="currentQuestion"
@@ -93,23 +103,23 @@
 
     <!-- Navigation Buttons -->
     <div class="nav-buttons">
-      <button v-if="!showInstructions && !showBreakPage && currentModule" class="prev-btn" :disabled="currentQuestion === 0" @click="prevQuestion">Prev</button>
+      <button v-if="!showInstructions && !showBreakPage && !showCalendly && currentModule" class="prev-btn" :disabled="currentQuestion === 0" @click="prevQuestion">Prev</button>
       <button 
-        v-if="!showInstructions && !showBreakPage && currentModule && !isLastQuestion"
+        v-if="!showInstructions && !showBreakPage && !showCalendly && currentModule && !isLastQuestion"
         class="next-btn" 
         @click="nextOrStart"
       >
         Next
       </button>
       <button 
-        v-if="showInstructions && !showBreakPage"
+        v-if="showInstructions && !showBreakPage && !showCalendly"
         class="next-btn start-test-btn"
         @click="nextOrStart"
       >
         Start Test
       </button>
       <button 
-        v-if="!showInstructions && !showBreakPage && currentModule && isLastQuestion"
+        v-if="!showInstructions && !showBreakPage && !showCalendly && currentModule && isLastQuestion"
         class="submit-btn"
         @click="handleSubmit"
       >
@@ -118,7 +128,7 @@
     </div>
 
     <!-- Footer -->
-    <div class="footer">
+    <div v-if="!showCalendly" class="footer">
       <span>{{ props.studentName }}</span>
       <span class="info">SAT® is a registered trademark owned by the College Board, PSAT/NMSQT® is a registered trademark of the College Board and National Merit Scholarship Corporation, neither of which was involved in the production of, nor do they endorse, these materials.</span>
     </div>
@@ -193,6 +203,7 @@ import QuestionNavigation from './QuestionNavigation.vue'
 import InstructionsBox from './InstructionsBox.vue'
 import ConfirmationDialog from './ConfirmationDialog.vue'
 import BreakPage from './BreakPage.vue'
+import CalendlyScheduler from './CalendlyScheduler.vue'
 import Papa from 'papaparse'
 import csvData from '../assets/data.csv?raw'
 import { supabase } from '../lib/supabase'    
@@ -356,6 +367,10 @@ const showModuleTransition = ref(false)
 const showSubmitConfirmation = ref(false)
 const showDebugPanel = ref(false)
 const showBreakPage = ref(false)
+const showCalendly = ref(false)
+
+// Calendly URL - replace with your actual Calendly link
+const calendlyUrl = ref('https://calendly.com/youngscholars/meeting')
 
 const questionRenderKey = ref(0);
 const flagRenderKey = ref(0);
@@ -639,7 +654,21 @@ function selectAnswer(idx) {
   currentAnswers[currentQuestion.value] = idx
   
   // Update progress
-  const answeredCount = currentAnswers.filter(answer => answer !== null).length
+  const answeredCount = currentAnswers.filter(answer => answer !== null && answer !== '').length
+  moduleProgress.value[currentModule.value] = answeredCount
+  questionRenderKey.value += 1;
+  questionNavRenderKey.value += 1;
+  
+  // Save to localStorage
+  saveToLocalStorage()
+}
+
+function inputAnswer(value) {
+  const currentAnswers = getCurrentAnswers()
+  currentAnswers[currentQuestion.value] = value
+  
+  // Update progress
+  const answeredCount = currentAnswers.filter(answer => answer !== null && answer !== '').length
   moduleProgress.value[currentModule.value] = answeredCount
   questionRenderKey.value += 1;
   questionNavRenderKey.value += 1;
@@ -703,9 +732,9 @@ function handleTimerFinished() {
       timerStarted.value = false
       showModuleTransition.value = false
     } else if (currentModule.value === 'module4') {
-      // Test complete - could show completion screen
+      // Test complete - show Calendly scheduler
       showModuleTransition.value = false
-      alert('Test Complete! All modules finished.')
+      showCalendly.value = true
     }
   }, 2000) // Show transition for 2 seconds
 }
@@ -751,10 +780,10 @@ function confirmSubmit() {
       currentQuestion.value = 0
       showModuleTransition.value = false
     } else if (currentModule.value === 'module4') {
-      // Test complete
+      // Test complete - show Calendly scheduler
       showModuleTransition.value = false
       clearLocalStorage() // Clear saved data when test is complete
-      alert('Test Complete! All modules finished.')
+      showCalendly.value = true
     }
   }, 2000) // Show transition for 2 seconds
 }
@@ -774,6 +803,12 @@ function continueToSession2() {
   
   // Save to localStorage
   saveToLocalStorage()
+}
+
+function skipCalendly() {
+  showCalendly.value = false
+  // Optionally redirect or show a completion message
+  alert('Thank you for completing the test! You can schedule a review meeting later.')
 }
 
 function debugSwitchToMath() {

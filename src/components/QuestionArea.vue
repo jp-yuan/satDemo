@@ -17,31 +17,85 @@
         {{ isFlagged ? 'Unflag' : 'Flag' }}
       </button>
     </div>
-    <div class="question-prompt">{{ question.prompt }}</div>
-    <div class="choices">
+    
+    <!-- Question prompt with HTML rendering -->
+    <div class="question-prompt" v-html="question.prompt"></div>
+    
+    <!-- Multiple choice questions -->
+    <div v-if="showMultipleChoice" class="choices">
       <button
-        v-for="(choice, idx) in question.choices"
+        v-for="(choice, idx) in displayChoices"
         :key="idx"
         class="choice-btn"
         :class="{ selected: selectedAnswer === idx }"
         @click="$emit('select-answer', idx)"
       >
         <span class="choice-letter">{{ String.fromCharCode(65 + idx) }}</span>
-        <span class="choice-text">{{ choice }}</span>
+        <span class="choice-text" v-html="choice"></span>
       </button>
+    </div>
+    
+    <!-- Short answer questions -->
+    <div v-else class="short-answer">
+      <input
+        type="text"
+        :value="selectedAnswer"
+        @input="$emit('input-answer', $event.target.value)"
+        placeholder="Enter your answer"
+        class="answer-input"
+      />
     </div>
   </div>
 </template>
 
 <script setup>
-defineProps({
+import { computed } from 'vue'
+
+const props = defineProps({
   questionNumber: Number,
   question: Object,
-  selectedAnswer: Number,
+  selectedAnswer: [Number, String],
   isFlagged: Boolean
 })
 
-defineEmits(['select-answer', 'toggle-flag'])
+defineEmits(['select-answer', 'input-answer', 'toggle-flag'])
+
+// Determine if this is a multiple choice question
+const showMultipleChoice = computed(() => {
+  // For math modules, check is_multiple_choice field
+  if (props.question.is_multiple_choice !== undefined) {
+    return props.question.is_multiple_choice
+  }
+  // For Reading/Writing modules, show choices if they exist
+  return props.question.choices && props.question.choices.length > 0
+})
+
+// Get the appropriate choices to display
+const displayChoices = computed(() => {
+  // For math modules with HTML choices
+  if (props.question.choices_raw) {
+    try {
+      const tempDiv = document.createElement('div')
+      tempDiv.innerHTML = props.question.choices_raw
+      const choiceElements = tempDiv.querySelectorAll('li')
+      const choices = []
+      
+      choiceElements.forEach(li => {
+        const choiceText = li.innerHTML
+        if (choiceText.trim()) {
+          choices.push(choiceText)
+        }
+      })
+      
+      return choices
+    } catch (error) {
+      console.error('Error parsing HTML choices:', error)
+      return []
+    }
+  }
+  // For Reading/Writing modules with regular choices
+  return props.question.choices || []
+})
 </script>
 
 <style scoped>
@@ -131,5 +185,50 @@ defineEmits(['select-answer', 'toggle-flag'])
   background: #ffebee;
   border-color: #e57373;
   color: #d32f2f;
+}
+
+.short-answer {
+  margin-top: 18px;
+}
+
+.answer-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #222;
+  border-radius: 6px;
+  font-size: 16px;
+  background: #fff;
+  transition: border-color 0.2s;
+}
+
+.answer-input:focus {
+  outline: none;
+  border-color: #1976d2;
+}
+
+/* Math expression styling */
+.question-prompt math,
+.choice-text math {
+  font-family: 'Times New Roman', serif;
+  font-style: italic;
+}
+
+.question-prompt mfrac,
+.choice-text mfrac {
+  display: inline-block;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.question-prompt msup,
+.choice-text msup {
+  font-size: 0.8em;
+  vertical-align: super;
+}
+
+.question-prompt msub,
+.choice-text msub {
+  font-size: 0.8em;
+  vertical-align: sub;
 }
 </style> 

@@ -57,6 +57,60 @@ export async function fetchQuestions() {
 
     console.log('Module 2 questions loaded:', questions.module2.length)
 
+
+
+    // Fetch module 3
+    const { data: Session1Module3, error: error3 } = await supabase
+      .from("questions")
+      .select("*")
+      .eq("test_number", "1")
+      .eq("module_number", 3)
+
+    if (error3) {
+      throw new Error(`Error fetching module 3: ${error3.message}`)
+    }
+
+    if (Session1Module3) {
+      Session1Module3.forEach((question) => {
+        questions.module3.push({
+          texts: [{text: question.question_prompt}],
+          prompt: question.question_prompt,  // HTML prompt
+          choices_raw: question.question_choices,  // HTML choices
+          is_multiple_choice: question.is_multiple_choice,  // Boolean flag
+          correct_answer: question.correct_answer,  // Correct answer
+          module: "Math Module 1",
+        })
+      })
+    }
+
+    console.log('Module 3 questions loaded:', questions.module3.length)
+
+    // Fetch module 4
+    const { data: Session1Module4, error: error4 } = await supabase
+      .from("questions")
+      .select("*")
+      .eq("test_number", "1")
+      .eq("module_number", 4)
+
+    if (error4) {
+      throw new Error(`Error fetching module 4: ${error4.message}`)
+    }
+
+    if (Session1Module4) {
+      Session1Module4.forEach((question) => {
+        questions.module4.push({
+          texts: [{text: question.question_prompt}],
+          prompt: question.question_prompt,  // HTML prompt
+          choices_raw: question.question_choices,  // HTML choices
+          is_multiple_choice: question.is_multiple_choice,  // Boolean flag
+          correct_answer: question.correct_answer,  // Correct answer
+          module: "Math Module 2",
+        })
+      })
+    }
+
+    console.log('Module 4 questions loaded:', questions.module4.length)
+
     return questions
   } catch (error) {
     console.error('Error in fetchQuestions:', error)
